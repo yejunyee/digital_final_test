@@ -103,4 +103,99 @@ cv.waitKey(0)
 
 </code>
 </pre>
-2. 
+2.  내 얼굴을 포함한 얼굴 인식
+index.html
+<pre>
+<code>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script defer src="face-api.min.js"></script>
+  <script defer src="script.js"></script>
+  <title>Face Recognition</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column
+    }
+
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+  <input type="file" id="imageUpload">
+</body>
+</html>
+</code>
+</pre>
+다음은 script.js
+<pre>
+<code>
+const imageUpload = document.getElementById('imageUpload')
+
+Promise.all([
+  faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+  faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+  faceapi.nets.ssdMobilenetv1.loadFromUri('/models')
+]).then(start)
+
+async function start() {
+  const container = document.createElement('div')
+  container.style.position = 'relative'
+  document.body.append(container)
+  const labeledFaceDescriptors = await loadLabeledImages()
+  const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6)
+  let image
+  let canvas
+  document.body.append('Loaded')
+  imageUpload.addEventListener('change', async () => {
+    if (image) image.remove()
+    if (canvas) canvas.remove()
+    image = await faceapi.bufferToImage(imageUpload.files[0])
+    container.append(image)
+    canvas = faceapi.createCanvasFromMedia(image)
+    container.append(canvas)
+    const displaySize = { width: image.width, height: image.height }
+    faceapi.matchDimensions(canvas, displaySize)
+    const detections = await faceapi.detectAllFaces(image).withFaceLandmarks().withFaceDescriptors()
+    const resizedDetections = faceapi.resizeResults(detections, displaySize)
+    const results = resizedDetections.map(d => faceMatcher.findBestMatch(d.descriptor))
+    results.forEach((result, i) => {
+      const box = resizedDetections[i].detection.box
+      const drawBox = new faceapi.draw.DrawBox(box, { label: result.toString() })
+      drawBox.draw(canvas)
+    })
+  })
+}
+
+function loadLabeledImages() {
+  const labels = ['YeJun', 'YeungSoo', 'hyunWoo']
+  return Promise.all(
+    labels.map(async label => {
+      const descriptions = []
+      for (let i = 1; i <= 2; i++) {
+        const img = await faceapi.fetchImage(`https://github.com/yejunyee/digital_final_test/tree/main/label_iamge`)
+        const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
+        descriptions.push(detections.descriptor)
+      }
+
+      return new faceapi.LabeledFaceDescriptors(label, descriptions)
+    })
+  )
+}
+</code>
+</pre>
+친구들이 지금 같이 모이기 힘들어서 사진을 비디오에 가져다가 인식되게 만들었습니다
